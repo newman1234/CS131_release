@@ -27,7 +27,10 @@ def conv(image, kernel):
     padded = np.pad(image, pad_width, mode='edge')
 
     ### YOUR CODE HERE
-    pass
+    kernelFLip = np.flip(np.flip(kernel, axis=0), axis=1)
+    for i in range(Hi):
+        for j in range(Wi):
+            out[i, j] = np.sum(padded[i:i+Hk, j:j+Wk] * kernelFLip)
     ### END YOUR CODE
 
     return out
@@ -52,7 +55,10 @@ def gaussian_kernel(size, sigma):
     kernel = np.zeros((size, size))
 
     ### YOUR CODE HERE
-    pass
+    k = (size - 1) / 2
+    for i in range(size):
+        for j in range(size):
+            kernel[i, j] = 1 / (2 * np.pi * sigma**2) * np.exp(-((i-k)**2 + (j-k)**2) / (2*sigma**2))
     ### END YOUR CODE
 
     return kernel
@@ -72,7 +78,8 @@ def partial_x(img):
     out = None
 
     ### YOUR CODE HERE
-    pass
+    k = np.array([[0, 0, 0], [0.5, 0, -0.5], [0, 0, 0]])
+    out = conv(img, k)
     ### END YOUR CODE
 
     return out
@@ -92,7 +99,8 @@ def partial_y(img):
     out = None
 
     ### YOUR CODE HERE
-    pass
+    k = np.array([[0, 0.5, 0], [0, 0, 0], [0, -0.5, 0]])
+    out = conv(img, k)
     ### END YOUR CODE
 
     return out
@@ -113,7 +121,8 @@ def gradient(img):
     theta = np.zeros(img.shape)
 
     ### YOUR CODE HERE
-    pass
+    G = np.sqrt(partial_x(img)**2 + partial_y(img)**2)
+    theta = (np.arctan2(partial_y(img), partial_x(img)) + np.pi) * 360 / (2*np.pi)
     ### END YOUR CODE
 
     return G, theta
@@ -139,7 +148,33 @@ def non_maximum_suppression(G, theta):
     theta = np.floor((theta + 22.5) / 45) * 45
 
     ### BEGIN YOUR CODE
-    pass
+    rad_dict = {
+        0:(1, 0),
+        45:(1, 1),
+        90:(0, 1),
+        135:(-1, 1),
+        180:(-1, 0),
+        225:(-1, -1),
+        270:(0, -1),
+        315:(1, -1),
+        360:(1, 0)
+    }
+
+    l = np.zeros((H+2, 1))
+    u = np.zeros((1, W))
+    d = np.zeros((1, W))
+    r = np.zeros((H+2, 1))
+    Gpad = np.concatenate((u, G, d), axis=0)
+    Gpad = np.concatenate((l, Gpad, r), axis=1)
+
+    for i in range(H):
+        for j in range(W):
+            y1, x1 = rad_dict[theta[i, j]]
+            y2, x2 = rad_dict[(theta[i, j]+180) % 360]
+            if G[i, j] <= Gpad[i+y1, j+x1] or G[i, j] <= Gpad[i+y2, j+x2]:
+                out[i, j] = 0
+            else:
+                out[i, j] = G[i, j]
     ### END YOUR CODE
 
     return out
@@ -159,12 +194,12 @@ def double_thresholding(img, high, low):
             Weak edges are the pixels with the values below the
             higher threshould and above the lower threshold.
     """
-
     strong_edges = np.zeros(img.shape)
     weak_edges = np.zeros(img.shape)
 
     ### YOUR CODE HERE
-    pass
+    strong_edges = np.where(img > high, True, False)
+    weak_edges = np.where((img <= high) & (img > low), True, False)
     ### END YOUR CODE
 
     return strong_edges, weak_edges
@@ -217,7 +252,12 @@ def link_edges(strong_edges, weak_edges):
     edges = np.zeros((H, W))
 
     ### YOUR CODE HERE
-    pass
+    for t in indices:
+        y, x = t[0], t[1]
+        edges[y, x] = True
+        for i, j in get_neighbors(y, x, H, W):
+            if weak_edges[i, j] == True:
+                edges[i, j] = True
     ### END YOUR CODE
 
     return edges
@@ -235,7 +275,12 @@ def canny(img, kernel_size=5, sigma=1.4, high=20, low=15):
         edge: numpy array of shape(H, W)
     """
     ### YOUR CODE HERE
-    pass
+    k = gaussian_kernel(kernel_size, sigma)
+    smooth = conv(img, k)
+    G, theta = gradient(smooth)
+    nms = non_maximum_suppression(G, theta)
+    strong, weak = double_thresholding(nms, high, low)
+    edge = link_edges(strong, weak)
     ### END YOUR CODE
 
     return edge
@@ -275,7 +320,13 @@ def hough_transform(img):
     # Find rho corresponding to values in thetas
     # and increment the accumulator in the corresponding coordiate.
     ### YOUR CODE HERE
-    pass
+    for y, x in zip(ys, xs):
+        rho = x * cos_t + y * sin_t
+        rho_idx = np.around(rho).astype(int)
+        theta_idx = np.arange(num_thetas)
+        for i, j in zip(rho_idx, theta_idx):
+            accumulator[i, j] += 1
+        # accumulator[rho_idx, theta_idx] += 1 
     ### END YOUR CODE
 
     return accumulator, rhos, thetas
